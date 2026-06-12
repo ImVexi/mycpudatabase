@@ -465,7 +465,7 @@
     return { stats: result, latestYear: maxYear };
   }
 
-  function findModern26Tier(score, tab, tier, coreBand) {
+  function findModern26Tier(score, tab, tier, coreBand, selfScore) {
     var stats = tierYearStats[tab];
     if (!stats) return null;
     // Try specific core band first, fall back to any core band in same tier
@@ -479,7 +479,16 @@
     }
     for (var k = 0; k < keys.length; k++) {
       var avg = stats[keys[k]] && stats[keys[k]][2026] ? stats[keys[k]][2026] : null;
-      if (avg) return { tier: tier, avg: avg };
+      if (avg) {
+        // Exclude this item's own score if it was likely in the top 10
+        var adjusted = avg;
+        if (selfScore && selfScore >= avg * 0.7) {
+          // Approximate: undo selfScore's contribution if it was in the top 10
+          adjusted = Math.round((avg * 10 - selfScore) / 9);
+          if (adjusted < 1) adjusted = avg;
+        }
+        return { tier: tier, avg: adjusted };
+      }
     }
     return null;
   }
@@ -1082,7 +1091,7 @@
 
     // Find which 2026 class this CPU belongs to (same tier, similar core count)
     var coreBand = tab === 'cpu' ? getCoreBand(item.coresThreads) : null;
-    var modern26 = findModern26Tier(score, tab, itemTier, coreBand);
+    var modern26 = findModern26Tier(score, tab, itemTier, coreBand, score);
     var modern26Tier = modern26 ? modern26.tier : null;
     var modern26Avg = modern26 ? modern26.avg : null;
 
@@ -1098,14 +1107,18 @@
       else { perfClass = 'Below Avg'; perfClassColor = '#6b7280'; }
     }
 
-    // Compute max for scaling
+    // Compute max for scaling — use 2026 averages so chart isn't stretched by all-time outliers
     var allTierMax = 0;
     var segBoundaries = [0];
     for (var t = 0; t < tierOrder.length; t++) {
       var tn = tierOrder[t];
+      // Use the 2026 average for each tier to define bands; fall back to all-time max
       var mx = 0;
-      var yrs = stats && stats[tn];
-      if (yrs) for (var yr in yrs) if (yrs[yr] > mx) mx = yrs[yr];
+      if (stats && stats[tn]) {
+        mx = stats[tn][2026] || 0;
+        // If no 2026 data, use max across all years for that tier
+        if (!mx) for (var yr in stats[tn]) if (stats[tn][yr] > mx) mx = stats[tn][yr];
+      }
       segBoundaries.push(Math.max(mx, segBoundaries[t] + 1));
       if (mx > allTierMax) allTierMax = mx;
     }
@@ -1238,7 +1251,7 @@
     // Modern equivalent
     if (cpu.passmark) {
       var cb = getCoreBand(cpu.coresThreads);
-      var m26 = findModern26Tier(cpu.passmark, 'cpu', tier, cb);
+      var m26 = findModern26Tier(cpu.passmark, 'cpu', tier, cb, cpu.passmark);
       if (m26) {
         var pct = Math.round((cpu.passmark / m26.avg) * 100);
         html += '<div class="detail-equivalent">Roughly a 2026 <strong>' + m26.tier + '-class CPU</strong> (' + pct + '% of 2026 ' + m26.tier + ' avg)</div>';
@@ -1308,7 +1321,7 @@
 
     // Modern equivalent
     if (gpu.g3d > 0) {
-      var m26 = findModern26Tier(gpu.g3d, 'gpu', tier, null);
+      var m26 = findModern26Tier(gpu.g3d, 'gpu', tier, null, gpu.g3d);
       if (m26) {
         var pct = Math.round((gpu.g3d / m26.avg) * 100);
         html += '<div class="detail-equivalent">Roughly a 2026 <strong>' + m26.tier + '-class GPU</strong> (' + pct + '% of 2026 ' + m26.tier + ' avg)</div>';

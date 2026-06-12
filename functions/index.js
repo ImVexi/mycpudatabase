@@ -39,7 +39,10 @@ export async function onRequest(context) {
   } catch (e) {}
 
   return new Response(html, {
-    headers: { 'Content-Type': 'text/html;charset=UTF-8' }
+    headers: {
+      'Content-Type': 'text/html;charset=UTF-8',
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    }
   });
 }
 

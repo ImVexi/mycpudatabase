@@ -13,7 +13,12 @@ export async function onRequest(context) {
     html = html.replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${esc(defaultTitle)}">`);
     html = html.replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${esc(defaultDesc)}">`);
     html = html.replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${esc(url.href)}">`);
-    return new Response(html, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    });
   }
 
   const staticResp = await env.ASSETS.fetch(new Request(url.origin + '/'));
@@ -47,7 +52,10 @@ export async function onRequest(context) {
   } catch (e) {}
 
   return new Response(html, {
-    headers: { 'Content-Type': 'text/html;charset=UTF-8' }
+    headers: {
+      'Content-Type': 'text/html;charset=UTF-8',
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    }
   });
 }
 

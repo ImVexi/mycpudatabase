@@ -1,0 +1,5 @@
+.git/
+.gitattributes
+.gitignore
+.wrangler/
+node_modules/

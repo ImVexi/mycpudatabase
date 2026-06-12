@@ -2,6 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mycpudatabase",
   "compatibility_date": "2026-06-12",
+  "pages_build_output_dir": ".",
   "compatibility_flags": [
     "nodejs_compat"
   ]

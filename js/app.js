@@ -485,9 +485,10 @@
     if (!best) return null;
 
     // Only show if the match is within 30% of the CPU's score
-    // (avoids garbage comparisons like 72k → 29k)
+    // and the year isn't unreasonably far off (avoid data quality issues)
     var ratio = best.avgScore / score;
     if (ratio < 0.7 || ratio > 1.3) return null;
+    if (itemYear > 0 && Math.abs(best.year - itemYear) > 5) return null;
 
     return best;
   }

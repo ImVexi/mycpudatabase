@@ -277,18 +277,18 @@
   }
 
   function getGpuTier(g3d) {
-    if (g3d >= 15000) return 'tier-flagship';
-    if (g3d >= 8000) return 'tier-ultra';
-    if (g3d >= 4000) return 'tier-high';
-    if (g3d >= 2000) return 'tier-med';
+    if (g3d >= 30000) return 'tier-flagship';
+    if (g3d >= 20000) return 'tier-ultra';
+    if (g3d >= 10000) return 'tier-high';
+    if (g3d >= 3000) return 'tier-med';
     return 'tier-low';
   }
 
   function getGpuTierLabel(g3d) {
-    if (g3d >= 15000) return 'Flagship';
-    if (g3d >= 8000) return 'Ultra';
-    if (g3d >= 4000) return 'High';
-    if (g3d >= 2000) return 'Mid';
+    if (g3d >= 30000) return 'Flagship';
+    if (g3d >= 20000) return 'Ultra';
+    if (g3d >= 10000) return 'High';
+    if (g3d >= 3000) return 'Mid';
     return 'Entry';
   }
 
@@ -780,7 +780,7 @@
       var maxScore = 60000;
       var pct = Math.min(Math.sqrt(g.g3d / maxScore) * 100, 100);
       fill.style.width = pct + '%';
-      bar.title = 'G3D: ' + g.g3d.toLocaleString() + ' | Top GPU: ~60,000';
+      bar.title = 'G3D: ' + g.g3d.toLocaleString() + ' | Top GPU: ~42,000';
       bar.appendChild(fill);
       tdG3d.appendChild(bar);
       var label = document.createElement('span');
@@ -1516,10 +1516,10 @@
       var gtiers = [0, 0, 0, 0, 0];
       for (var i = 0; i < getFilteredItems().length; i++) {
         var g3d = getFilteredItems()[i].g3d || 0;
-        if (g3d >= 15000) gtiers[0]++;
-        else if (g3d >= 8000) gtiers[1]++;
-        else if (g3d >= 4000) gtiers[2]++;
-        else if (g3d >= 2000) gtiers[3]++;
+        if (g3d >= 30000) gtiers[0]++;
+        else if (g3d >= 20000) gtiers[1]++;
+        else if (g3d >= 10000) gtiers[2]++;
+        else if (g3d >= 3000) gtiers[3]++;
         else gtiers[4]++;
       }
       var html = '<div class="stat-row"><span>Total DB</span><span class="stat-val">' + total.toLocaleString() + '</span></div>';

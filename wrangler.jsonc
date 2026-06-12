@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mycpudatabase",
   "compatibility_date": "2026-06-12",
-  "main": "_worker.js",
+  "main": "src/index.js",
   "observability": {
     "enabled": true
   },

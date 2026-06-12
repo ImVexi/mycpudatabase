@@ -465,48 +465,28 @@
     var itemTierIdx = tierOrder.indexOf(itemTier);
     if (itemTierIdx < 0) return null;
 
-    var ownAvg = stats[itemTier] && stats[itemTier][itemYear] ? stats[itemTier][itemYear] : null;
-
-    // Helper: find best match among given tiers and years
-    function findBest(tiers, yearsFilter) {
-      var best = null, bestDiff = Infinity;
-      for (var t = 0; t < tiers.length; t++) {
-        var tier = tiers[t];
-        var yrs = stats[tier];
-        if (!yrs) continue;
-        for (var yr in yrs) {
-          var yrNum = parseInt(yr, 10);
-          if (yearsFilter && !yearsFilter(yrNum, tier)) continue;
-          var avg = yrs[yr];
-          var diff = Math.abs(score - avg);
-          if (diff < bestDiff) {
-            bestDiff = diff;
-            best = { year: yrNum, tier: tier, avgScore: avg, diff: diff };
-          }
+    // Scan all tiers/years for closest average match
+    var best = null, bestDiff = Infinity;
+    for (var t = 0; t < tierOrder.length; t++) {
+      var tier = tierOrder[t];
+      var yrs = stats[tier];
+      if (!yrs) continue;
+      for (var yr in yrs) {
+        var avg = yrs[yr];
+        var diff = Math.abs(score - avg);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = { year: parseInt(yr, 10), tier: tier, avgScore: avg };
         }
       }
-      return best;
     }
+    if (!best) return null;
 
-    // If score is below own tier-year average → look at lower tiers or newer years of same tier
-    if (ownAvg && score < ownAvg) {
-      var lowerTiers = tierOrder.slice(0, itemTierIdx);
-      var match = findBest(lowerTiers, function (yr, t) { return yr >= itemYear - 1; });
-      if (!match) match = findBest([itemTier], function (yr) { return yr > itemYear; });
-      if (match && match.tier !== itemTier) return match;
-      if (match && Math.abs(match.year - itemYear) >= 2) return match;
-    }
+    // Don't show equivalent if it's the same tier/year (CPU is exactly average)
+    if (best.tier === itemTier && best.year === itemYear) return null;
 
-    // If score is above own tier-year average → look at higher tiers or same tier older years
-    if (ownAvg && score > ownAvg) {
-      var higherTiers = tierOrder.slice(itemTierIdx + 1);
-      var match = findBest(higherTiers, function (yr, t) { return yr >= itemYear - 1; });
-      if (!match) match = findBest([itemTier], function (yr) { return yr < itemYear && Math.abs(yr - itemYear) >= 2; });
-      if (match && match.tier !== itemTier) return match;
-      if (match && Math.abs(match.year - itemYear) >= 2) return match;
-    }
-
-    // No noteworthy comparison
+    // Show equivalent only if it's a different tier or at least 2 years apart
+    if (best.tier !== itemTier || Math.abs(best.year - itemYear) >= 2) return best;
     return null;
   }
 
@@ -1107,54 +1087,54 @@
     var itemYear = item.releaseYear || 0;
     var equiv = findModernEquivalent(item, tab);
 
-    // Get max score for scaling
-    var allTierMax = 0;
-    for (var t = 0; t < tierOrder.length; t++) {
-      var tn = tierOrder[t];
-      var mx = 0;
-      var yrs = stats[tn];
-      if (yrs) for (var yr in yrs) if (yrs[yr] > mx) mx = yrs[yr];
-      if (mx > allTierMax) allTierMax = mx;
+    // Determine performance class within tier
+    var ownAvg = stats && stats[itemTier] && stats[itemTier][itemYear] ? stats[itemTier][itemYear] : null;
+    var perfClass = '';
+    var perfClassColor = '';
+    if (ownAvg) {
+      var ratio = score / ownAvg;
+      if (ratio >= 1.15) { perfClass = 'Top End'; perfClassColor = tierColors[itemTier]; }
+      else if (ratio >= 1.0) { perfClass = 'Strong'; perfClassColor = '#22c55e'; }
+      else if (ratio >= 0.85) { perfClass = 'Solid'; perfClassColor = '#eab308'; }
+      else { perfClass = 'Entry Level'; perfClassColor = '#6b7280'; }
     }
-    allTierMax = Math.max(allTierMax, score * 1.15);
 
-    var W = 700, H = 150;
-    var padL = 10, padR = 20, barArea = 680;
-    var barH = 28, barY = 38;
-
-    function xPos(v) { return padL + (v / allTierMax) * barArea; }
-
-    // Compute segment boundaries for each tier
+    // Compute max for scaling
+    var allTierMax = 0;
     var segBoundaries = [0];
     for (var t = 0; t < tierOrder.length; t++) {
       var tn = tierOrder[t];
       var mx = 0;
-      var yrs = stats[tn];
+      var yrs = stats && stats[tn];
       if (yrs) for (var yr in yrs) if (yrs[yr] > mx) mx = yrs[yr];
       segBoundaries.push(Math.max(mx, segBoundaries[t] + 1));
+      if (mx > allTierMax) allTierMax = mx;
     }
+    allTierMax = Math.max(allTierMax, score * 1.15);
     segBoundaries[segBoundaries.length - 1] = allTierMax;
+
+    var W = 700, H = 180, padL = 10, barArea = 680;
+    var barH = 28, barY = 42;
+    function xPos(v) { return padL + (v / allTierMax) * barArea; }
 
     var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">';
 
-    // Draw colored tier bands
+    // Tier bands
     for (var t = 0; t < tierOrder.length; t++) {
       var tn = tierOrder[t];
       var x1 = xPos(segBoundaries[t]);
       var x2 = xPos(segBoundaries[t + 1]);
-      svg += '<rect x="' + x1 + '" y="' + barY + '" width="' + (x2 - x1) + '" height="' + barH + '" fill="' + tierColors[tn] + '" opacity="0.12" rx="0"/>';
+      svg += '<rect x="' + x1 + '" y="' + barY + '" width="' + (x2 - x1) + '" height="' + barH + '" fill="' + tierColors[tn] + '" opacity="0.1"/>';
     }
 
-    // Draw tier labels below bar
+    // Tier labels
     for (var t = 0; t < tierOrder.length; t++) {
       var tn = tierOrder[t];
-      var x1 = xPos(segBoundaries[t]);
-      var x2 = xPos(segBoundaries[t + 1]);
-      var cx = (x1 + x2) / 2;
-      svg += '<text x="' + cx + '" y="' + (barY + barH + 16) + '" text-anchor="middle" fill="' + tierColors[tn] + '" font-size="11" font-weight="700">' + tn + '</text>';
+      var cx = (xPos(segBoundaries[t]) + xPos(segBoundaries[t + 1])) / 2;
+      svg += '<text x="' + cx + '" y="' + (barY + barH + 16) + '" text-anchor="middle" fill="' + tierColors[tn] + '" font-size="10" font-weight="700" opacity="0.7">' + tn + '</text>';
     }
 
-    // Draw the score bar as colored segments passing through each tier
+    // Score bar (colored segments)
     var scoreX = xPos(score);
     var drawnTo = padL;
     for (var t = 0; t < tierOrder.length; t++) {
@@ -1164,27 +1144,41 @@
       svg += '<rect x="' + drawnTo + '" y="' + (barY - 2) + '" width="' + (segEnd - drawnTo) + '" height="' + (barH + 4) + '" fill="' + tierColors[tn] + '" opacity="0.85"/>';
       drawnTo = segEnd;
     }
-    // Round end caps
     svg += '<rect x="' + (padL - 1) + '" y="' + (barY - 2) + '" width="8" height="' + (barH + 4) + '" rx="4" fill="' + tierColors[tierOrder[0]] + '" opacity="0.85"/>';
     svg += '<rect x="' + (scoreX - 7) + '" y="' + (barY - 2) + '" width="8" height="' + (barH + 4) + '" rx="4" fill="' + tierColors[itemTier] + '" opacity="0.85"/>';
 
-    // Score label on bar
-    svg += '<text x="' + (padL + 10) + '" y="' + (barY + barH / 2 + 3) + '" fill="#fff" font-size="12" font-weight="700">' + score.toLocaleString() + '</text>';
+    // Score + class badge on bar
+    svg += '<text x="' + (padL + 10) + '" y="' + (barY + barH / 2 + 4) + '" fill="#fff" font-size="12" font-weight="700">' + score.toLocaleString() + '</text>';
+    if (perfClass) {
+      svg += '<rect x="' + (padL + 10 + (score.toLocaleString().length * 8)) + '" y="' + (barY + 4) + '" width="' + (perfClass.length * 7 + 12) + '" height="18" rx="9" fill="' + perfClassColor + '" opacity="0.9"/>';
+      svg += '<text x="' + (padL + 16 + (score.toLocaleString().length * 8)) + '" y="' + (barY + 16) + '" fill="#fff" font-size="10" font-weight="700">' + perfClass + '</text>';
+    }
 
-    // Item name above bar
-    svg += '<text x="' + padL + '" y="' + (barY - 8) + '" fill="var(--text)" font-size="13" font-weight="700">' + escHtml(item.name) + ' — ' + itemTier + ' ' + label + ' (' + (itemYear || '?') + ')</text>';
+    // Item name and tier
+    svg += '<text x="' + padL + '" y="' + (barY - 8) + '" fill="var(--text)" font-size="13" font-weight="700">' + escHtml(item.name) + '</text>';
+    svg += '<text x="' + padL + '" y="' + (barY + barH + 34) + '" fill="var(--text-muted)" font-size="11">' + itemTier + ' ' + label + ' (' + (itemYear || '?') + ')</text>';
 
-    // Equivalent marker
-    if (equiv && (equiv.tier !== itemTier || Math.abs(equiv.year - itemYear) >= 2)) {
+    // Modern equivalent marker below
+    if (equiv) {
       var ex = xPos(equiv.avgScore);
-      var lineY = barY + barH + 30;
+      var lineY = barY + barH + 40;
+      var desc = equiv.tier + ' ' + label + ' (' + equiv.year + ')';
       svg += '<line x1="' + ex + '" y1="' + (barY - 5) + '" x2="' + ex + '" y2="' + (lineY + 14) + '" stroke="var(--danger)" stroke-width="2" stroke-dasharray="5,3"/>';
       svg += '<polygon points="' + (ex - 5) + ',' + (lineY) + ' ' + (ex + 5) + ',' + (lineY) + ' ' + ex + ',' + (lineY + 10) + '" fill="var(--danger)"/>';
-      svg += '<text x="' + (ex + 10) + '" y="' + (lineY + 8) + '" fill="var(--danger)" font-size="11" font-weight="600">Performs like a ' + equiv.year + ' ' + equiv.tier + ' ' + label + '</text>';
+      svg += '<text x="' + (ex + 10) + '" y="' + (lineY + 8) + '" fill="var(--danger)" font-size="11" font-weight="600">Performs like a ' + desc + '</text>';
+    } else if (ownAvg) {
+      // No equivalent — show position within tier
+      var pct = Math.round((score / ownAvg) * 100);
+      var direction = pct >= 100 ? 'above' : 'below';
+      svg += '<text x="' + padL + '" y="' + (barY + barH + 52) + '" fill="var(--text-muted)" font-size="10">' + pct + '% of ' + itemYear + ' ' + itemTier + ' average — ';
+      if (pct >= 115) svg += 'among the fastest in its class';
+      else if (pct >= 100) svg += 'above average for its class';
+      else if (pct >= 85) svg += 'around average for its class';
+      else svg += 'below average for its class';
+      svg += '</text>';
     }
 
     svg += '</svg>';
-
     container.innerHTML = svg;
   }
 

@@ -7,39 +7,42 @@ export default {
     const userAgent = request.headers.get('User-Agent') || '';
     const isCrawler = /(Discordbot|Twitterbot|facebookexternalhit|Facebot|Slack|TelegramBot|WhatsApp|LinkedInBot|Applebot|Slackbot|Slack-ImgProxy|Googlebot|bingbot|Pinterest)/i.test(userAgent);
 
-    // Generate OG-rich HTML for /embed paths, or for ?cpu=/?gpu= when requested by a crawler
-    if (isEmbedPath || (isCrawler && (cpuName || gpuName))) {
-      let title = 'CPUDb — Hardware Specs Database';
-      let desc = 'Browse and compare 9000+ CPUs and 3000+ GPUs with specs, benchmarks, and performance comparisons.';
+    // Pass through non-embed, non-crawler requests to static assets
+    if (!isEmbedPath && !(isCrawler && (cpuName || gpuName))) {
+      return env.ASSETS.fetch(request);
+    }
 
-      try {
-        if (cpuName) {
-          const jsonResp = await env.ASSETS.fetch(new URL('/all_cpus.json', url));
-          const data = await jsonResp.json();
-          const cpu = data.cpus.find(c => c.name === cpuName);
-          if (cpu) {
-            const pm = cpu.passmark || 0;
-            const tier = pm >= 40000 ? 'Flagship' : pm >= 20000 ? 'Ultra' : pm >= 10000 ? 'High' : pm >= 5000 ? 'Mid' : 'Entry';
-            const fullName = (cpu._details && cpu._details._fullName) || cpu.fullName || cpu.name;
-            title = `${fullName} — ${tier} CPU`;
-            desc = buildCpuDesc(cpu, pm, tier);
-          }
-        } else if (gpuName) {
-          const jsonResp = await env.ASSETS.fetch(new URL('/all_gpus.json', url));
-          const data = await jsonResp.json();
-          const gpu = data.gpus.find(g => g.name === gpuName);
-          if (gpu) {
-            const g3d = gpu.g3d || 0;
-            const tier = g3d >= 30000 ? 'Flagship' : g3d >= 20000 ? 'Ultra' : g3d >= 10000 ? 'High' : g3d >= 3000 ? 'Mid' : 'Entry';
-            title = `${gpu.name} — ${tier} GPU`;
-            desc = buildGpuDesc(gpu, g3d, tier);
-          }
+    let title = 'CPUDb — Hardware Specs Database';
+    let desc = 'Browse and compare 9000+ CPUs and 3000+ GPUs with specs, benchmarks, and performance comparisons.';
+
+    try {
+      if (cpuName) {
+        const jsonResp = await fetch(url.origin + '/all_cpus.json');
+        const data = await jsonResp.json();
+        const cpu = data.cpus.find(c => c.name === cpuName);
+        if (cpu) {
+          const pm = cpu.passmark || 0;
+          const tier = pm >= 40000 ? 'Flagship' : pm >= 20000 ? 'Ultra' : pm >= 10000 ? 'High' : pm >= 5000 ? 'Mid' : 'Entry';
+          const fullName = (cpu._details && cpu._details._fullName) || cpu.fullName || cpu.name;
+          title = `${fullName} — ${tier} CPU`;
+          desc = buildCpuDesc(cpu, pm, tier);
         }
-      } catch (e) {}
+      } else if (gpuName) {
+        const jsonResp = await fetch(url.origin + '/all_gpus.json');
+        const data = await jsonResp.json();
+        const gpu = data.gpus.find(g => g.name === gpuName);
+        if (gpu) {
+          const g3d = gpu.g3d || 0;
+          const tier = g3d >= 30000 ? 'Flagship' : g3d >= 20000 ? 'Ultra' : g3d >= 10000 ? 'High' : g3d >= 3000 ? 'Mid' : 'Entry';
+          title = `${gpu.name} — ${tier} GPU`;
+          desc = buildGpuDesc(gpu, g3d, tier);
+        }
+      }
+    } catch (e) {}
 
-      const redirect = cpuName ? '/?cpu=' + encodeURIComponent(cpuName) : gpuName ? '/?gpu=' + encodeURIComponent(gpuName) : '/';
+    const redirect = cpuName ? '/?cpu=' + encodeURIComponent(cpuName) : gpuName ? '/?gpu=' + encodeURIComponent(gpuName) : '/';
 
-      return new Response(`<!DOCTYPE html>
+    return new Response(`<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
@@ -49,14 +52,11 @@ export default {
 <meta http-equiv="refresh" content="0;url=${esc(redirect)}">
 <title>${esc(title)}</title>
 </head><body><script>location.href='${esc(redirect)}'</script></body></html>`, {
-        headers: {
-          'Content-Type': 'text/html;charset=UTF-8',
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
-      });
-    }
-
-    return env.ASSETS.fetch(request);
+      headers: {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    });
   }
 };
 

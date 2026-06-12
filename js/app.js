@@ -684,7 +684,7 @@
     nameWrap.className = 'name-wrap';
     var a = document.createElement('a');
     a.className = 'cpu-name-link';
-    a.href = '/?cpu=' + encodeURIComponent(c.name);
+    a.href = '/embed?cpu=' + encodeURIComponent(c.name);
     a.textContent = c.name;
     nameWrap.appendChild(a);
     if (c.passmark) {
@@ -763,7 +763,7 @@
     nameWrap.className = 'name-wrap';
     var a = document.createElement('a');
     a.className = 'cpu-name-link';
-    a.href = '/?gpu=' + encodeURIComponent(g.name);
+    a.href = '/embed?gpu=' + encodeURIComponent(g.name);
     a.textContent = g.name;
     nameWrap.appendChild(a);
     if (g.g3d > 0) {

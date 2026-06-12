@@ -465,10 +465,12 @@
     var itemTierIdx = tierOrder.indexOf(itemTier);
     if (itemTierIdx < 0) return null;
 
-    // Scan all tiers/years for closest average match
+    // Only search for equivalents in DIFFERENT tiers
+    // This avoids matching a Flagship CPU to a Flagship average (redundant)
     var best = null, bestDiff = Infinity;
     for (var t = 0; t < tierOrder.length; t++) {
       var tier = tierOrder[t];
+      if (tier === itemTier) continue; // skip own tier
       var yrs = stats[tier];
       if (!yrs) continue;
       for (var yr in yrs) {
@@ -482,12 +484,12 @@
     }
     if (!best) return null;
 
-    // Don't show equivalent if it's the same tier/year (CPU is exactly average)
-    if (best.tier === itemTier && best.year === itemYear) return null;
+    // Only show if the match is within 30% of the CPU's score
+    // (avoids garbage comparisons like 72k → 29k)
+    var ratio = best.avgScore / score;
+    if (ratio < 0.7 || ratio > 1.3) return null;
 
-    // Show equivalent only if it's a different tier or at least 2 years apart
-    if (best.tier !== itemTier || Math.abs(best.year - itemYear) >= 2) return best;
-    return null;
+    return best;
   }
 
   // ── Filtering ──

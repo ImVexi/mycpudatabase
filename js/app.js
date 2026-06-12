@@ -1104,6 +1104,7 @@
     if (!score) { container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">No benchmark data available</div>'; return; }
 
     var stats = tierYearStats[tab];
+    var bandStats = tierBandStats[tab];
     var tierOrder = ['Entry', 'Mid', 'High', 'Ultra', 'Flagship'];
     var tierColors = {'Entry':'#6b7280','Mid':'#eab308','High':'#22c55e','Ultra':'#06b6d4','Flagship':'#6366f1'};
     var itemTier = getTierLabel(score);
@@ -1127,18 +1128,20 @@
       else { perfClass = 'Below Avg'; perfClassColor = '#6b7280'; }
     }
 
-    // Compute max for scaling — use 2026 averages so chart isn't stretched by all-time outliers
+    // Helper: get 2026 average for a tier, preferring the matching core band
+    function getTierAvg(tierName) {
+      var bandKey = tierName + '|' + coreBand;
+      if (bandStats && bandStats[bandKey] && bandStats[bandKey][2026]) return bandStats[bandKey][2026];
+      if (stats && stats[tierName] && stats[tierName][2026]) return stats[tierName][2026];
+      return null;
+    }
+
+    // Compute max for scaling — use core-band-specific 2026 averages for each tier
     var allTierMax = 0;
     var segBoundaries = [0];
     for (var t = 0; t < tierOrder.length; t++) {
       var tn = tierOrder[t];
-      // Use the 2026 average for each tier to define bands; fall back to all-time max
-      var mx = 0;
-      if (stats && stats[tn]) {
-        mx = stats[tn][2026] || 0;
-        // If no 2026 data, use max across all years for that tier
-        if (!mx) for (var yr in stats[tn]) if (stats[tn][yr] > mx) mx = stats[tn][yr];
-      }
+      var mx = getTierAvg(tn) || 0;
       segBoundaries.push(Math.max(mx, segBoundaries[t] + 1));
       if (mx > allTierMax) allTierMax = mx;
     }
@@ -1186,22 +1189,27 @@
       svg += '<text x="' + (padL + 17 + (score.toLocaleString().length * 8)) + '" y="' + (barY + 16) + '" fill="#fff" font-size="10" font-weight="700">' + perfClass + '</text>';
     }
 
-    // 2026 average marker line (for the matched tier, not same-tier)
+    // 2026 average marker line (for the matched tier core-band average)
     if (modern26Avg) {
       var mx26 = xPos(modern26Avg);
       var markerBot = barY + barH + 5;
       svg += '<line x1="' + mx26 + '" y1="14" x2="' + mx26 + '" y2="' + markerBot + '" stroke="var(--primary)" stroke-width="2" stroke-dasharray="6,3"/>';
+      var bandLabel = coreBand ? 'top 10 × ' + coreBand + ' core' : 'top 10';
       svg += '<text x="' + mx26 + '" y="11" text-anchor="middle" fill="var(--primary)" font-size="10" font-weight="700">2026 ' + modern26Tier + ' avg: ' + modern26Avg.toLocaleString() + '</text>';
     }
 
     // Item name and tier
     svg += '<text x="' + padL + '" y="' + (barY - 8) + '" fill="var(--text)" font-size="13" font-weight="700">' + escHtml(item.name) + '</text>';
-    svg += '<text x="' + padL + '" y="' + (barY + barH + 34) + '" fill="var(--text-muted)" font-size="11">' + itemTier + ' ' + label + ' (' + (itemYear || '?') + ')</text>';
+    var tierInfo = itemTier + ' ' + label + ' (' + (itemYear || '?') + ')';
+    if (coreBand) tierInfo += ' | ' + coreBand + ' cores';
+    tierInfo += ')';
+    svg += '<text x="' + padL + '" y="' + (barY + barH + 34) + '" fill="var(--text-muted)" font-size="11">' + tierInfo + '</text>';
 
-    // Bottom line: "Roughly a 2026 [tier]-class CPU"
+    // Bottom line: "Roughly a 2026 [tier]-class CPU (top 10 × [core band] cores)"
     if (modern26Tier) {
       var pct = Math.round((score / modern26Avg) * 100);
-      svg += '<text x="' + padL + '" y="' + (barY + barH + 52) + '" fill="var(--text-muted)" font-size="10">Roughly a 2026 ' + modern26Tier + '-class CPU (' + pct + '% of 2026 ' + modern26Tier + ' avg)</text>';
+      var bandLabel = coreBand ? ' (top 10 × ' + coreBand + ' cores)' : ' (top 10)';
+      svg += '<text x="' + padL + '" y="' + (barY + barH + 52) + '" fill="var(--text-muted)" font-size="10">Roughly a 2026 ' + modern26Tier + '-class CPU' + bandLabel + ' — ' + pct + '% of avg</text>';
     }
 
     svg += '</svg>';
@@ -1274,7 +1282,8 @@
       var m26 = findModern26Tier(cpu.passmark, 'cpu', tier, cb, cpu.passmark);
       if (m26) {
         var pct = Math.round((cpu.passmark / m26.avg) * 100);
-        html += '<div class="detail-equivalent">Roughly a 2026 <strong>' + m26.tier + '-class CPU</strong> (' + pct + '% of 2026 ' + m26.tier + ' avg)</div>';
+        var bandLabel = cb ? ' (top 10 × ' + cb + ' cores)' : ' (top 10)';
+        html += '<div class="detail-equivalent">Roughly a 2026 <strong>' + m26.tier + '-class CPU</strong>' + bandLabel + ' — ' + pct + '% of avg</div>';
       }
     }
 

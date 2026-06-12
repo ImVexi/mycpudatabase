@@ -2,11 +2,13 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mycpudatabase",
   "compatibility_date": "2026-06-12",
+  "main": "_worker.js",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "."
+    "directory": ".",
+    "not_found_handling": "none"
   },
   "compatibility_flags": [
     "nodejs_compat"

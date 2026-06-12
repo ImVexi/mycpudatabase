@@ -5,7 +5,15 @@ export async function onRequest(context) {
   const gpuName = url.searchParams.get('gpu');
 
   if (!cpuName && !gpuName) {
-    return env.ASSETS.fetch(request);
+    const indexResp = await env.ASSETS.fetch(new Request(url.origin + '/'));
+    let html = await indexResp.text();
+    const defaultTitle = 'CPUDb — Hardware Specs Database';
+    const defaultDesc = 'Browse and compare 9000+ CPUs and 3000+ GPUs with specs, benchmarks, and performance comparisons.';
+    html = html.replace(/<title>.*?<\/title>/, `<title>${esc(defaultTitle)}</title>`);
+    html = html.replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${esc(defaultTitle)}">`);
+    html = html.replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${esc(defaultDesc)}">`);
+    html = html.replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${esc(url.href)}">`);
+    return new Response(html, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
   }
 
   const staticResp = await env.ASSETS.fetch(new Request(url.origin + '/'));

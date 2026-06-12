@@ -409,6 +409,17 @@
 
   // ── Tier-Year Stats ──
 
+  function getCoreBand(coresThreads) {
+    if (!coresThreads || coresThreads === '—') return null;
+    var m = String(coresThreads).match(/^(\d+)/);
+    var cores = m ? parseInt(m[1], 10) : 0;
+    if (cores <= 0) return null;
+    if (cores <= 4) return '1-4';
+    if (cores <= 8) return '5-8';
+    if (cores <= 16) return '9-16';
+    return '17+';
+  }
+
   function buildTierYearStats(data, tab) {
     var scores = {};
     var lYear = {};
@@ -426,46 +437,51 @@
         tier = getGpuTierLabel(score || 0);
       }
       if (!score || !tier) continue;
-      if (!scores[tier]) scores[tier] = {};
-      if (!scores[tier][year]) scores[tier][year] = [];
-      scores[tier][year].push(score);
+      var coreBand = tab === 'cpu' ? getCoreBand(item.coresThreads) : 'all';
+      var key = tier + '|' + coreBand;
+      if (!scores[key]) scores[key] = {};
+      if (!scores[key][year]) scores[key][year] = [];
+      scores[key][year].push(score);
     }
 
     var result = {};
     var maxYear = {};
     var topN = 10;
-    for (var tier in scores) {
-      result[tier] = {};
+    for (var key in scores) {
+      result[key] = {};
       var yMax = 0;
-      for (var yr in scores[tier]) {
-        var all = scores[tier][yr];
+      for (var yr in scores[key]) {
+        var all = scores[key][yr];
         all.sort(function (a, b) { return b - a; });
         var top = all.slice(0, topN);
         var sum = 0;
         for (var s = 0; s < top.length; s++) sum += top[s];
-        result[tier][yr] = Math.round(sum / top.length);
+        result[key][yr] = Math.round(sum / top.length);
         var y = parseInt(yr, 10);
         if (y > yMax) yMax = y;
       }
-      maxYear[tier] = yMax;
+      maxYear[key] = yMax;
     }
     return { stats: result, latestYear: maxYear };
   }
 
-  function findModern26Tier(score, tab) {
+  function findModern26Tier(score, tab, tier, coreBand) {
     var stats = tierYearStats[tab];
     if (!stats) return null;
-    var tierOrder = ['Entry', 'Mid', 'High', 'Ultra', 'Flagship'];
-    var best = null, bestDiff = Infinity;
-    for (var t = 0; t < tierOrder.length; t++) {
-      var tn = tierOrder[t];
-      var avg = stats[tn] && stats[tn][2026] ? stats[tn][2026] : null;
-      if (avg) {
-        var d = Math.abs(score - avg);
-        if (d < bestDiff) { bestDiff = d; best = { tier: tn, avg: avg }; }
-      }
+    // Try specific core band first, fall back to any core band in same tier
+    var keys = [tier + '|' + coreBand, tier + '|null', tier + '|all'];
+    if (coreBand) {
+      // Try neighboring bands if exact match not found
+      var bands = ['1-4', '5-8', '9-16', '17+'];
+      var idx = bands.indexOf(coreBand);
+      if (idx > 0) keys.push(tier + '|' + bands[idx - 1]);
+      if (idx < bands.length - 1) keys.push(tier + '|' + bands[idx + 1]);
     }
-    return best;
+    for (var k = 0; k < keys.length; k++) {
+      var avg = stats[keys[k]] && stats[keys[k]][2026] ? stats[keys[k]][2026] : null;
+      if (avg) return { tier: tier, avg: avg };
+    }
+    return null;
   }
 
   // ── Filtering ──
@@ -1064,8 +1080,9 @@
     var itemTier = getTierLabel(score);
     var itemYear = item.releaseYear || 0;
 
-    // Find which 2026 tier this CPU roughly belongs to
-    var modern26 = findModern26Tier(score, tab);
+    // Find which 2026 class this CPU belongs to (same tier, similar core count)
+    var coreBand = tab === 'cpu' ? getCoreBand(item.coresThreads) : null;
+    var modern26 = findModern26Tier(score, tab, itemTier, coreBand);
     var modern26Tier = modern26 ? modern26.tier : null;
     var modern26Avg = modern26 ? modern26.avg : null;
 
@@ -1139,10 +1156,9 @@
     // 2026 average marker line (for the matched tier, not same-tier)
     if (modern26Avg) {
       var mx26 = xPos(modern26Avg);
-      var markerTop = barY - 5;
       var markerBot = barY + barH + 5;
-      svg += '<line x1="' + mx26 + '" y1="' + markerTop + '" x2="' + mx26 + '" y2="' + markerBot + '" stroke="var(--primary)" stroke-width="2" stroke-dasharray="6,3"/>';
-      svg += '<text x="' + mx26 + '" y="' + (markerTop - 4) + '" text-anchor="middle" fill="var(--primary)" font-size="10" font-weight="700">2026 ' + modern26Tier + ' avg: ' + modern26Avg.toLocaleString() + '</text>';
+      svg += '<line x1="' + mx26 + '" y1="14" x2="' + mx26 + '" y2="' + markerBot + '" stroke="var(--primary)" stroke-width="2" stroke-dasharray="6,3"/>';
+      svg += '<text x="' + mx26 + '" y="11" text-anchor="middle" fill="var(--primary)" font-size="10" font-weight="700">2026 ' + modern26Tier + ' avg: ' + modern26Avg.toLocaleString() + '</text>';
     }
 
     // Item name and tier
@@ -1221,7 +1237,8 @@
 
     // Modern equivalent
     if (cpu.passmark) {
-      var m26 = findModern26Tier(cpu.passmark, 'cpu');
+      var cb = getCoreBand(cpu.coresThreads);
+      var m26 = findModern26Tier(cpu.passmark, 'cpu', tier, cb);
       if (m26) {
         var pct = Math.round((cpu.passmark / m26.avg) * 100);
         html += '<div class="detail-equivalent">Roughly a 2026 <strong>' + m26.tier + '-class CPU</strong> (' + pct + '% of 2026 ' + m26.tier + ' avg)</div>';
@@ -1291,7 +1308,7 @@
 
     // Modern equivalent
     if (gpu.g3d > 0) {
-      var m26 = findModern26Tier(gpu.g3d, 'gpu');
+      var m26 = findModern26Tier(gpu.g3d, 'gpu', tier, null);
       if (m26) {
         var pct = Math.round((gpu.g3d / m26.avg) * 100);
         html += '<div class="detail-equivalent">Roughly a 2026 <strong>' + m26.tier + '-class GPU</strong> (' + pct + '% of 2026 ' + m26.tier + ' avg)</div>';

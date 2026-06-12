@@ -14,6 +14,7 @@
   var compareMode = false;
 
   var tierYearStats = { cpu: {}, gpu: {} };
+  var tierBandStats = { cpu: {}, gpu: {} };
   var latestYear = { cpu: {}, gpu: {} };
   var manuCounts = { cpu: {}, gpu: {} };
 
@@ -423,8 +424,8 @@
   }
 
   function buildTierYearStats(data, tab) {
-    var scores = {};
-    var lYear = {};
+    var bandScores = {};
+    var tierScores = {};
     for (var i = 0; i < data.length; i++) {
       var item = data[i];
       var year = item.releaseYear;
@@ -439,36 +440,47 @@
         tier = getGpuTierLabel(score || 0);
       }
       if (!score || !tier) continue;
+      // Per-band scores
       var coreBand = tab === 'cpu' ? getCoreBand(item.coresThreads) : 'all';
-      var key = tier + '|' + coreBand;
-      if (!scores[key]) scores[key] = {};
-      if (!scores[key][year]) scores[key][year] = [];
-      scores[key][year].push(score);
+      var bandKey = tier + '|' + coreBand;
+      if (!bandScores[bandKey]) bandScores[bandKey] = {};
+      if (!bandScores[bandKey][year]) bandScores[bandKey][year] = [];
+      bandScores[bandKey][year].push(score);
+      // Aggregated tier scores (all core bands combined)
+      if (!tierScores[tier]) tierScores[tier] = {};
+      if (!tierScores[tier][year]) tierScores[tier][year] = [];
+      tierScores[tier][year].push(score);
     }
 
-    var result = {};
-    var maxYear = {};
     var topN = 10;
-    for (var key in scores) {
-      result[key] = {};
-      var yMax = 0;
-      for (var yr in scores[key]) {
-        var all = scores[key][yr];
-        all.sort(function (a, b) { return b - a; });
-        var top = all.slice(0, topN);
-        var sum = 0;
-        for (var s = 0; s < top.length; s++) sum += top[s];
-        result[key][yr] = Math.round(sum / top.length);
-        var y = parseInt(yr, 10);
-        if (y > yMax) yMax = y;
+    function computeAverages(scores) {
+      var result = {};
+      var maxYear = {};
+      for (var key in scores) {
+        result[key] = {};
+        var yMax = 0;
+        for (var yr in scores[key]) {
+          var all = scores[key][yr];
+          all.sort(function (a, b) { return b - a; });
+          var top = all.slice(0, topN);
+          var sum = 0;
+          for (var s = 0; s < top.length; s++) sum += top[s];
+          result[key][yr] = Math.round(sum / top.length);
+          var y = parseInt(yr, 10);
+          if (y > yMax) yMax = y;
+        }
+        maxYear[key] = yMax;
       }
-      maxYear[key] = yMax;
+      return { stats: result, latestYear: maxYear };
     }
-    return { stats: result, latestYear: maxYear };
+
+    var aggregated = computeAverages(tierScores);
+    var banded = computeAverages(bandScores);
+    return { stats: aggregated.stats, latestYear: aggregated.latestYear, bandStats: banded.stats, bandLatestYear: banded.latestYear };
   }
 
   function findModern26Tier(score, tab, tier, coreBand, selfScore) {
-    var stats = tierYearStats[tab];
+    var stats = tierBandStats[tab];
     if (!stats) return null;
     // Try specific core band first, fall back to any core band in same tier
     var keys = [tier + '|' + coreBand, tier + '|null', tier + '|all'];
@@ -1857,9 +1869,11 @@
             // Build tier-year stats
             var cpuStats = buildTierYearStats(allData.cpu, 'cpu');
             tierYearStats.cpu = cpuStats.stats;
+            tierBandStats.cpu = cpuStats.bandStats;
             latestYear.cpu = cpuStats.latestYear;
             var gpuStats = buildTierYearStats(allData.gpu, 'gpu');
             tierYearStats.gpu = gpuStats.stats;
+            tierBandStats.gpu = gpuStats.bandStats;
             latestYear.gpu = gpuStats.latestYear;
 
             els.loadingState.classList.remove('visible');

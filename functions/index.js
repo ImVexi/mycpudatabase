@@ -1,12 +1,16 @@
 export async function onRequest(context) {
-  const { request } = context;
+  const { request, env } = context;
   const url = new URL(request.url);
   const cpuName = url.searchParams.get('cpu');
   const gpuName = url.searchParams.get('gpu');
 
-  // Fetch the JSON data
+  // No params — serve the static index.html as-is
+  if (!cpuName && !gpuName) {
+    return env.ASSETS.fetch(request);
+  }
+
   const baseUrl = url.origin;
-  let name = '', score = '', tier = '', type = 'CPU', imgUrl = '';
+  let name = '', score = '', tier = '', type = 'CPU';
 
   try {
     if (cpuName) {
@@ -22,7 +26,6 @@ export async function onRequest(context) {
         else if (pm >= 10000) tier = 'High';
         else if (pm >= 5000) tier = 'Mid';
         else tier = 'Entry';
-        imgUrl = `${baseUrl}/icon.png`;
       }
     } else if (gpuName) {
       const resp = await fetch(`${baseUrl}/all_gpus.json`);
@@ -41,38 +44,41 @@ export async function onRequest(context) {
       }
     }
   } catch (e) {
-    // Silently fall back to default embed
+    // Fall through to static index.html
   }
 
   const title = name ? `${name} — ${tier} ${type}` : 'CPUDb — Hardware Specs Database';
   const desc = name ? `PassMark: ${score} | ${tier} ${type}` : 'Browse and compare 9000+ CPUs and 3000+ GPUs.';
-  const redirectUrl = cpuName ? `${baseUrl}/?cpu=${encodeURIComponent(cpuName)}` :
-                       gpuName ? `${baseUrl}/?gpu=${encodeURIComponent(gpuName)}` : baseUrl;
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="robots" content="noindex">
-  <meta property="og:title" content="${escapeHtml(title)}">
-  <meta property="og:description" content="${escapeHtml(desc)}">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="${escapeHtml(url.href)}">
-  <meta name="theme-color" content="#2563eb">
-  <meta http-equiv="refresh" content="0;url=${escapeHtml(redirectUrl)}">
-  <title>${escapeHtml(title)}</title>
-</head>
-<body>
-  <script>window.location.href = ${JSON.stringify(redirectUrl)};</script>
-</body>
-</html>`;
-
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html;charset=UTF-8' }
-  });
+  // Fetch the real index.html and inject OG tags
+  try {
+    const staticResp = await env.ASSETS.fetch(new Request(baseUrl + '/'));
+    const staticHtml = await staticResp.text();
+    const ogHtml = staticHtml
+      .replace(/<title>.*?<\/title>/, `<title>${escHtml(title)}</title>`)
+      .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${escHtml(title)}">`)
+      .replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${escHtml(desc)}">`)
+      .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${escHtml(url.href)}">`);
+    return new Response(ogHtml, {
+      headers: { 'Content-Type': 'text/html;charset=UTF-8' }
+    });
+  } catch (e) {
+    // Fallback minimal page
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<meta property="og:title" content="${escHtml(title)}">
+<meta property="og:description" content="${escHtml(desc)}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="${escHtml(url.href)}">
+<title>${escHtml(title)}</title></head><body>
+<script>location.href = '/?cpu=${encodeURIComponent(cpuName || '')}${gpuName ? '?gpu=' + encodeURIComponent(gpuName) : ''}'</script>
+</body></html>`;
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html;charset=UTF-8' }
+    });
+  }
 }
 
-function escapeHtml(s) {
+function escHtml(s) {
   if (!s) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

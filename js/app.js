@@ -672,7 +672,7 @@
     nameWrap.className = 'name-wrap';
     var a = document.createElement('a');
     a.className = 'cpu-name-link';
-    a.href = '#';
+    a.href = '/embed?cpu=' + encodeURIComponent(c.name);
     a.textContent = c.name;
     nameWrap.appendChild(a);
     if (c.passmark) {
@@ -751,7 +751,7 @@
     nameWrap.className = 'name-wrap';
     var a = document.createElement('a');
     a.className = 'cpu-name-link';
-    a.href = '#';
+    a.href = '/embed?gpu=' + encodeURIComponent(g.name);
     a.textContent = g.name;
     nameWrap.appendChild(a);
     if (g.g3d > 0) {
@@ -1743,6 +1743,31 @@
     }
   }
 
+  function handleUrlParam() {
+    var params = new URLSearchParams(window.location.search);
+    var cpuName = params.get('cpu');
+    var gpuName = params.get('gpu');
+    // Also check path-based params
+    var path = window.location.pathname;
+    if (!cpuName && !gpuName && path.indexOf('/embed') === 0) {
+      // Already handled by the embed function
+      return;
+    }
+    if (cpuName) {
+      switchTab('cpu');
+      var items = allData.cpu;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].name === cpuName) { showDetailModal(items[i]); return; }
+      }
+    } else if (gpuName) {
+      switchTab('gpu');
+      var items = allData.gpu;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].name === gpuName) { showDetailModal(items[i]); return; }
+      }
+    }
+  }
+
   // ── Initialization ──
 
   function init() {
@@ -1845,6 +1870,9 @@
             initQuickFilters();
             updateFilterStats();
             switchTab('cpu');
+
+            // Check URL params for auto-opening a detail view
+            handleUrlParam();
           });
       })
       .catch(function (err) {

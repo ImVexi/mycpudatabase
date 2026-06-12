@@ -4,7 +4,8 @@
   "main": "src/index.js",
   "compatibility_date": "2026-06-12",
   "assets": {
-    "directory": "."
+    "directory": ".",
+    "exclude": [".git", ".wrangler", ".gitattributes", ".gitignore", "node_modules"]
   },
   "compatibility_flags": [
     "nodejs_compat"

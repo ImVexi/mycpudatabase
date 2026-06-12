@@ -1732,6 +1732,7 @@
         return;
       }
 
+      if (e.target.closest('a')) e.preventDefault();
       showDetailModal(item);
     }
 

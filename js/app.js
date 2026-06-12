@@ -447,49 +447,19 @@
     return { stats: result, latestYear: maxYear };
   }
 
-  function findModernEquivalent(item, tab) {
-    var score, itemTier;
-    if (tab === 'cpu') {
-      score = item.passmark;
-      itemTier = getCpuTierLabel(score || 0);
-    } else {
-      score = item.g3d;
-      itemTier = getGpuTierLabel(score || 0);
-    }
-    if (!score) return null;
+  function findModern26Tier(score, tab) {
     var stats = tierYearStats[tab];
     if (!stats) return null;
-
-    var itemYear = item.releaseYear || 0;
     var tierOrder = ['Entry', 'Mid', 'High', 'Ultra', 'Flagship'];
-    var itemTierIdx = tierOrder.indexOf(itemTier);
-    if (itemTierIdx < 0) return null;
-
-    // Only search for equivalents in DIFFERENT tiers
-    // This avoids matching a Flagship CPU to a Flagship average (redundant)
     var best = null, bestDiff = Infinity;
     for (var t = 0; t < tierOrder.length; t++) {
-      var tier = tierOrder[t];
-      if (tier === itemTier) continue; // skip own tier
-      var yrs = stats[tier];
-      if (!yrs) continue;
-      for (var yr in yrs) {
-        var avg = yrs[yr];
-        var diff = Math.abs(score - avg);
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          best = { year: parseInt(yr, 10), tier: tier, avgScore: avg };
-        }
+      var tn = tierOrder[t];
+      var avg = stats[tn] && stats[tn][2026] ? stats[tn][2026] : null;
+      if (avg) {
+        var d = Math.abs(score - avg);
+        if (d < bestDiff) { bestDiff = d; best = { tier: tn, avg: avg }; }
       }
     }
-    if (!best) return null;
-
-    // Only show if the match is within 30% of the CPU's score
-    // and the year isn't unreasonably far off (avoid data quality issues)
-    var ratio = best.avgScore / score;
-    if (ratio < 0.7 || ratio > 1.3) return null;
-    if (itemYear > 0 && Math.abs(best.year - itemYear) > 5) return null;
-
     return best;
   }
 
@@ -1088,18 +1058,22 @@
     var tierColors = {'Entry':'#6b7280','Mid':'#eab308','High':'#22c55e','Ultra':'#06b6d4','Flagship':'#6366f1'};
     var itemTier = getTierLabel(score);
     var itemYear = item.releaseYear || 0;
-    var equiv = findModernEquivalent(item, tab);
 
-    // Determine performance class within tier
-    var ownAvg = stats && stats[itemTier] && stats[itemTier][itemYear] ? stats[itemTier][itemYear] : null;
+    // Find which 2026 tier this CPU roughly belongs to
+    var modern26 = findModern26Tier(score, tab);
+    var modern26Tier = modern26 ? modern26.tier : null;
+    var modern26Avg = modern26 ? modern26.avg : null;
+
+    // Use 2026 average for perfClass, fall back to own-year tier average
+    var compareAvg = modern26Avg || (stats && stats[itemTier] && stats[itemTier][itemYear] ? stats[itemTier][itemYear] : null);
     var perfClass = '';
     var perfClassColor = '';
-    if (ownAvg) {
-      var ratio = score / ownAvg;
+    if (compareAvg) {
+      var ratio = score / compareAvg;
       if (ratio >= 1.15) { perfClass = 'Top End'; perfClassColor = tierColors[itemTier]; }
       else if (ratio >= 1.0) { perfClass = 'Strong'; perfClassColor = '#22c55e'; }
       else if (ratio >= 0.85) { perfClass = 'Solid'; perfClassColor = '#eab308'; }
-      else { perfClass = 'Entry Level'; perfClassColor = '#6b7280'; }
+      else { perfClass = 'Below Avg'; perfClassColor = '#6b7280'; }
     }
 
     // Compute max for scaling
@@ -1116,7 +1090,7 @@
     allTierMax = Math.max(allTierMax, score * 1.15);
     segBoundaries[segBoundaries.length - 1] = allTierMax;
 
-    var W = 700, H = 180, padL = 10, barArea = 680;
+    var W = 700, H = 190, padL = 10, barArea = 680;
     var barH = 28, barY = 42;
     function xPos(v) { return padL + (v / allTierMax) * barArea; }
 
@@ -1153,32 +1127,27 @@
     // Score + class badge on bar
     svg += '<text x="' + (padL + 10) + '" y="' + (barY + barH / 2 + 4) + '" fill="#fff" font-size="12" font-weight="700">' + score.toLocaleString() + '</text>';
     if (perfClass) {
-      svg += '<rect x="' + (padL + 10 + (score.toLocaleString().length * 8)) + '" y="' + (barY + 4) + '" width="' + (perfClass.length * 7 + 12) + '" height="18" rx="9" fill="' + perfClassColor + '" opacity="0.9"/>';
-      svg += '<text x="' + (padL + 16 + (score.toLocaleString().length * 8)) + '" y="' + (barY + 16) + '" fill="#fff" font-size="10" font-weight="700">' + perfClass + '</text>';
+      svg += '<rect x="' + (padL + 10 + (score.toLocaleString().length * 8)) + '" y="' + (barY + 4) + '" width="' + (perfClass.length * 7 + 14) + '" height="18" rx="9" fill="' + perfClassColor + '" opacity="0.9"/>';
+      svg += '<text x="' + (padL + 17 + (score.toLocaleString().length * 8)) + '" y="' + (barY + 16) + '" fill="#fff" font-size="10" font-weight="700">' + perfClass + '</text>';
+    }
+
+    // 2026 average marker line (for the matched tier, not same-tier)
+    if (modern26Avg) {
+      var mx26 = xPos(modern26Avg);
+      var markerTop = barY - 5;
+      var markerBot = barY + barH + 5;
+      svg += '<line x1="' + mx26 + '" y1="' + markerTop + '" x2="' + mx26 + '" y2="' + markerBot + '" stroke="var(--primary)" stroke-width="2" stroke-dasharray="6,3"/>';
+      svg += '<text x="' + mx26 + '" y="' + (markerTop - 4) + '" text-anchor="middle" fill="var(--primary)" font-size="10" font-weight="700">2026 ' + modern26Tier + ' avg: ' + modern26Avg.toLocaleString() + '</text>';
     }
 
     // Item name and tier
     svg += '<text x="' + padL + '" y="' + (barY - 8) + '" fill="var(--text)" font-size="13" font-weight="700">' + escHtml(item.name) + '</text>';
     svg += '<text x="' + padL + '" y="' + (barY + barH + 34) + '" fill="var(--text-muted)" font-size="11">' + itemTier + ' ' + label + ' (' + (itemYear || '?') + ')</text>';
 
-    // Modern equivalent marker below
-    if (equiv) {
-      var ex = xPos(equiv.avgScore);
-      var lineY = barY + barH + 40;
-      var desc = equiv.tier + ' ' + label + ' (' + equiv.year + ')';
-      svg += '<line x1="' + ex + '" y1="' + (barY - 5) + '" x2="' + ex + '" y2="' + (lineY + 14) + '" stroke="var(--danger)" stroke-width="2" stroke-dasharray="5,3"/>';
-      svg += '<polygon points="' + (ex - 5) + ',' + (lineY) + ' ' + (ex + 5) + ',' + (lineY) + ' ' + ex + ',' + (lineY + 10) + '" fill="var(--danger)"/>';
-      svg += '<text x="' + (ex + 10) + '" y="' + (lineY + 8) + '" fill="var(--danger)" font-size="11" font-weight="600">Performs like a ' + desc + '</text>';
-    } else if (ownAvg) {
-      // No equivalent — show position within tier
-      var pct = Math.round((score / ownAvg) * 100);
-      var direction = pct >= 100 ? 'above' : 'below';
-      svg += '<text x="' + padL + '" y="' + (barY + barH + 52) + '" fill="var(--text-muted)" font-size="10">' + pct + '% of ' + itemYear + ' ' + itemTier + ' average — ';
-      if (pct >= 115) svg += 'among the fastest in its class';
-      else if (pct >= 100) svg += 'above average for its class';
-      else if (pct >= 85) svg += 'around average for its class';
-      else svg += 'below average for its class';
-      svg += '</text>';
+    // Bottom line: "Roughly a 2026 [tier]-class CPU"
+    if (modern26Tier) {
+      var pct = Math.round((score / modern26Avg) * 100);
+      svg += '<text x="' + padL + '" y="' + (barY + barH + 52) + '" fill="var(--text-muted)" font-size="10">Roughly a 2026 ' + modern26Tier + '-class CPU (' + pct + '% of 2026 ' + modern26Tier + ' avg)</text>';
     }
 
     svg += '</svg>';
@@ -1246,9 +1215,12 @@
     html += '<div class="detail-chart-section"><div class="chart-title">Performance Comparison (' + escHtml(tier) + ' ' + (cpu.releaseYear || '') + ')</div><div id="' + chartId + '"></div></div>';
 
     // Modern equivalent
-    var equiv = findModernEquivalent(cpu, 'cpu');
-    if (equiv) {
-      html += '<div class="detail-equivalent">Performance roughly equivalent to a <strong>' + equiv.year + ' ' + equiv.tier + ' CPU</strong> (avg score: ' + equiv.avgScore.toLocaleString() + ')</div>';
+    if (cpu.passmark) {
+      var m26 = findModern26Tier(cpu.passmark, 'cpu');
+      if (m26) {
+        var pct = Math.round((cpu.passmark / m26.avg) * 100);
+        html += '<div class="detail-equivalent">Roughly a 2026 <strong>' + m26.tier + '-class CPU</strong> (' + pct + '% of 2026 ' + m26.tier + ' avg)</div>';
+      }
     }
 
     // Specs
@@ -1313,9 +1285,12 @@
     html += '<div class="detail-chart-section"><div class="chart-title">Performance Comparison (' + escHtml(tier) + ' ' + (gpu.releaseYear || '') + ')</div><div id="' + chartId + '"></div></div>';
 
     // Modern equivalent
-    var equiv = findModernEquivalent(gpu, 'gpu');
-    if (equiv) {
-      html += '<div class="detail-equivalent">Performance roughly equivalent to a <strong>' + equiv.year + ' ' + equiv.tier + ' GPU</strong> (avg score: ' + equiv.avgScore.toLocaleString() + ')</div>';
+    if (gpu.g3d > 0) {
+      var m26 = findModern26Tier(gpu.g3d, 'gpu');
+      if (m26) {
+        var pct = Math.round((gpu.g3d / m26.avg) * 100);
+        html += '<div class="detail-equivalent">Roughly a 2026 <strong>' + m26.tier + '-class GPU</strong> (' + pct + '% of 2026 ' + m26.tier + ' avg)</div>';
+      }
     }
 
     // Specs

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPUDb — Hardware Specs Database</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="header">
+  <div class="header-inner">
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle filters">&#9776;</button>
+    <h1 class="logo">CPUDb</h1>
+    <span class="tagline">Hardware Specs Database</span>
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="cpu">CPUs</button>
+      <button class="tab-btn" data-tab="gpu">GPUs</button>
+    </nav>
+  </div>
+</header>
+
+<main class="layout">
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-sticky">
+      <div class="sidebar-section">
+        <h3>Search</h3>
+        <input type="text" id="search" placeholder="Name, brand, bus..." autocomplete="off">
+      </div>
+      <div class="sidebar-section">
+        <h3>Manufacturer</h3>
+        <div class="filter-group" id="filter-manufacturer"></div>
+      </div>
+      <div class="sidebar-section tab-content" data-tab="cpu">
+        <h3>Socket</h3>
+        <div class="filter-group" id="filter-socket">
+          <span class="filter-loading">Loading...</span>
+        </div>
+      </div>
+      <div class="sidebar-section tab-content" data-tab="cpu">
+        <h3>Process Node</h3>
+        <div class="filter-group" id="filter-process">
+          <span class="filter-loading">Loading...</span>
+        </div>
+      </div>
+      <div class="sidebar-section tab-content" data-tab="cpu">
+        <h3>Quick Filters</h3>
+        <div class="quick-filters" id="quick-filters">
+          <button class="qf-btn" data-preset="flagship">Flagship</button>
+          <button class="qf-btn" data-preset="ultra">Ultra</button>
+          <button class="qf-btn" data-preset="high">High</button>
+          <button class="qf-btn" data-preset="mid">Mid</button>
+          <button class="qf-btn" data-preset="entry">Entry</button>
+          <button class="qf-btn" data-preset="server">Server</button>
+        </div>
+      </div>
+      <div class="sidebar-section tab-content" data-tab="gpu" id="gpu-bus-section">
+        <h3>Bus</h3>
+        <div class="filter-group" id="filter-gpu-bus"></div>
+      </div>
+      <div class="sidebar-section tab-content" data-tab="gpu" id="gpu-mem-section">
+        <h3>Memory Size</h3>
+        <div class="range-inputs">
+          <input type="number" id="gpu-mem-min" placeholder="Min MB" min="0" step="256">
+          <span>–</span>
+          <input type="number" id="gpu-mem-max" placeholder="Max MB" min="0" step="256">
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <h3>TDP (W)</h3>
+        <div class="range-inputs">
+          <input type="number" id="tdp-min" placeholder="Min" min="0" step="5">
+          <span>–</span>
+          <input type="number" id="tdp-max" placeholder="Max" min="0" step="5">
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <h3>Release Year</h3>
+        <div class="range-inputs">
+          <input type="number" id="year-min" placeholder="Min" min="1970" max="2030">
+          <span>–</span>
+          <input type="number" id="year-max" placeholder="Max" min="1970" max="2030">
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <h3>G3D / PassMark Score</h3>
+        <div class="range-inputs">
+          <input type="number" id="pm-min" placeholder="Min" min="0" step="1000">
+          <span>–</span>
+          <input type="number" id="pm-max" placeholder="Max" min="0" step="1000">
+        </div>
+      </div>
+      <button class="btn btn-secondary" id="clear-filters">Clear All Filters</button>
+      <div class="sidebar-section" id="stats-section">
+        <h3>Stats</h3>
+        <div class="filter-stats" id="filter-stats"></div>
+      </div>
+    </div>
+  </aside>
+
+  <section class="content">
+    <div class="controls-bar">
+      <div class="controls-left">
+        <span id="result-count" class="result-count">Loading...</span>
+      </div>
+      <div class="controls-right">
+        <label class="compare-toggle" title="Select items to compare side-by-side">
+          <input type="checkbox" id="compare-mode"> Compare
+        </label>
+        <button class="btn btn-primary" id="compare-btn" disabled>Compare (<span id="compare-count">0</span>)</button>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="cpu-table">
+        <thead>
+          <tr>
+            <th class="col-check"><input type="checkbox" id="select-all" title="Select all on this page"></th>
+            <th class="col-name sortable" data-sort="name" title="Sort by name">Name</th>
+            <th class="col-cores sortable tab-content" data-tab="cpu" data-sort="coresThreads" title="Sort by cores">Cores/T</th>
+            <th class="col-clock sortable tab-content" data-tab="cpu" data-sort="clock" title="Sort by max clock">Clock</th>
+            <th class="col-socket sortable tab-content" data-tab="cpu" data-sort="socket" title="Sort by socket">Socket</th>
+            <th class="col-process sortable tab-content" data-tab="cpu" data-sort="process" title="Sort by process node">Process</th>
+            <th class="col-tdp sortable" data-sort="tdp" title="Sort by TDP">TDP</th>
+            <th class="col-released sortable" data-sort="released" title="Sort by release date">Released</th>
+            <th class="col-passmark sortable tab-content" data-tab="cpu" data-sort="passmark" title="Sort by PassMark score">PassMark</th>
+            <th class="col-g3d sortable tab-content" data-tab="gpu" data-sort="g3d" title="Sort by G3D score">G3D</th>
+            <th class="col-g2d sortable tab-content" data-tab="gpu" data-sort="g2d" title="Sort by G2D score">G2D</th>
+            <th class="col-type sortable tab-content" data-tab="gpu" data-sort="type" title="Sort by type">Type</th>
+            <th class="col-category sortable tab-content" data-tab="gpu" data-sort="category" title="Sort by category">Category</th>
+            <th class="col-bus sortable tab-content" data-tab="gpu" data-sort="bus" title="Sort by bus">Bus</th>
+            <th class="col-memsize sortable tab-content" data-tab="gpu" data-sort="memSize" title="Sort by memory size">Memory</th>
+          </tr>
+        </thead>
+        <tbody id="cpu-tbody"></tbody>
+        <tbody id="gpu-tbody"></tbody>
+      </table>
+      <div class="empty-state" id="empty-state">
+        <p id="empty-state-msg">No items match your filters.</p>
+        <button class="btn btn-secondary" id="clear-filters-empty">Clear Filters</button>
+      </div>
+      <div class="loading-state" id="loading-state">
+        <div class="spinner"></div>
+        <p id="loading-state-msg">Loading...</p>
+      </div>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </section>
+</main>
+
+<div class="modal-overlay" id="compare-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="compare-modal-title">CPU Comparison</h2>
+      <button class="modal-close" id="modal-close">&times;</button>
+    </div>
+    <div class="modal-body table-wrapper" id="compare-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 id="detail-name"></h2>
+      <button class="modal-close" id="detail-close">&times;</button>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

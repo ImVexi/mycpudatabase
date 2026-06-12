@@ -15,6 +15,7 @@
 
   var tierYearStats = { cpu: {}, gpu: {} };
   var latestYear = { cpu: {}, gpu: {} };
+  var manuCounts = { cpu: {}, gpu: {} };
 
   var state = {
     search: '',
@@ -628,6 +629,7 @@
     updateCompareButton();
     updateSelectAllState();
     updateFilterStats();
+    updateFilterCounts();
   }
 
   function renderTable() {
@@ -1467,6 +1469,16 @@
     if (!skipRender) applyFilters();
   }
 
+  function updateFilterCounts() {
+    var counts = manuCounts[currentTab];
+    var cbs = els.filterManu.querySelectorAll('input[type="checkbox"]');
+    for (var i = 0; i < cbs.length; i++) {
+      var cb = cbs[i];
+      var countSpan = cb.parentNode.querySelector('.count');
+      if (countSpan) countSpan.textContent = counts[cb.value] || 0;
+    }
+  }
+
   function updateFilterStats() {
     var el = document.getElementById('filter-stats');
     if (!el) return;
@@ -1735,17 +1747,17 @@
 
         var options = buildCpuFilterOptions(allData.cpu);
 
-        var manuCounts = {};
+        var manuCountsCpu = {};
         var socketCounts = {};
         var processCounts = {};
         for (var i = 0; i < allData.cpu.length; i++) {
           var c = allData.cpu[i];
-          manuCounts[c.manufacturer] = (manuCounts[c.manufacturer] || 0) + 1;
+          manuCountsCpu[c.manufacturer] = (manuCountsCpu[c.manufacturer] || 0) + 1;
           socketCounts[c.socket] = (socketCounts[c.socket] || 0) + 1;
           processCounts[c.process] = (processCounts[c.process] || 0) + 1;
         }
 
-        renderFilterCheckboxes(els.filterManu, options.manufacturers, 'manufacturer', manuCounts);
+        renderFilterCheckboxes(els.filterManu, options.manufacturers, 'manufacturer', manuCountsCpu);
         renderFilterCheckboxes(els.filterSocket, options.sockets, 'socket', socketCounts);
         renderFilterCheckboxes(els.filterProcess, options.processes, 'process', processCounts);
 
@@ -1778,9 +1790,15 @@
               existingManus[manuCbs[i].value] = true;
             }
             // Deduplicate merged manufacturers
+            // Store separate counts for tab-aware display
+            manuCounts.cpu = {};
+            for (var key in manuCountsCpu) manuCounts.cpu[key] = manuCountsCpu[key];
+            manuCounts.gpu = {};
+            for (var key in gpuManuCounts) manuCounts.gpu[key] = gpuManuCounts[key];
+
             var allManuSet = {};
             var allManufacturers = [];
-            Object.keys(manuCounts).concat(Object.keys(gpuManuCounts)).forEach(function (m) {
+            Object.keys(manuCountsCpu).concat(Object.keys(gpuManuCounts)).forEach(function (m) {
               if (!allManuSet[m]) {
                 allManuSet[m] = true;
                 allManufacturers.push(m);
@@ -1788,7 +1806,7 @@
             });
             allManufacturers = sortManufacturers(allManufacturers);
             var mergedCounts = {};
-            for (var key in manuCounts) mergedCounts[key] = manuCounts[key];
+            for (var key in manuCountsCpu) mergedCounts[key] = manuCountsCpu[key];
             for (var key in gpuManuCounts) {
               mergedCounts[key] = (mergedCounts[key] || 0) + gpuManuCounts[key];
             }

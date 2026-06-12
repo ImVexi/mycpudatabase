@@ -152,6 +152,8 @@
       var v = parseFloat(nums[i]);
       if (v > max) max = v;
     }
+    // Normalize MHz to GHz (all modern CPUs use GHz, but some older entries are in MHz)
+    if (max >= 100) max = max / 1000;
     return max || null;
   }
 

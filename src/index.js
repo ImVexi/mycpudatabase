@@ -1,15 +1,18 @@
+const CPUS_URL = 'https://raw.githubusercontent.com/ImVexi/mycpudatabase/main/all_cpus.json';
+const GPUS_URL = 'https://raw.githubusercontent.com/ImVexi/mycpudatabase/main/all_gpus.json';
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const cpuName = url.searchParams.get('cpu');
     const gpuName = url.searchParams.get('gpu');
     const isEmbedPath = url.pathname.startsWith('/embed');
-    const userAgent = request.headers.get('User-Agent') || '';
-    const isCrawler = /(Discordbot|Twitterbot|facebookexternalhit|Facebot|Slack|TelegramBot|WhatsApp|LinkedInBot|Applebot|Slackbot|Slack-ImgProxy|Googlebot|bingbot|Pinterest)/i.test(userAgent);
 
-    // Pass through non-embed, non-crawler requests to static assets
-    if (!isEmbedPath && !(isCrawler && (cpuName || gpuName))) {
-      return env.ASSETS.fetch(request);
+    // Only handle /embed paths. Everything else passes through.
+    if (!isEmbedPath) {
+      try { return await env.ASSETS.fetch(request); } catch (e) {
+        return new Response('Not found', { status: 404 });
+      }
     }
 
     let title = 'CPUDb — Hardware Specs Database';
@@ -17,7 +20,7 @@ export default {
 
     try {
       if (cpuName) {
-        const jsonResp = await fetch(url.origin + '/all_cpus.json');
+        const jsonResp = await fetch(CPUS_URL);
         const data = await jsonResp.json();
         const cpu = data.cpus.find(c => c.name === cpuName);
         if (cpu) {
@@ -28,7 +31,7 @@ export default {
           desc = buildCpuDesc(cpu, pm, tier);
         }
       } else if (gpuName) {
-        const jsonResp = await fetch(url.origin + '/all_gpus.json');
+        const jsonResp = await fetch(GPUS_URL);
         const data = await jsonResp.json();
         const gpu = data.gpus.find(g => g.name === gpuName);
         if (gpu) {
@@ -40,7 +43,7 @@ export default {
       }
     } catch (e) {}
 
-    const redirect = cpuName ? '/?cpu=' + encodeURIComponent(cpuName) : gpuName ? '/?gpu=' + encodeURIComponent(gpuName) : '/';
+    const redirect = 'https://database.vextroboomin.xyz/?' + (cpuName ? 'cpu=' + encodeURIComponent(cpuName) : 'gpu=' + encodeURIComponent(gpuName));
 
     return new Response(`<!DOCTYPE html>
 <html><head><meta charset="UTF-8">

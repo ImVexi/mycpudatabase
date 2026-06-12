@@ -22,7 +22,7 @@ export default {
       if (cpuName) {
         const jsonResp = await fetch(CPUS_URL);
         const data = await jsonResp.json();
-        const cpu = data.cpus.find(c => c.name === cpuName);
+        const cpu = data.cpus.find(c => c.name === cpuName) || data.cpus.find(c => c.name.includes(cpuName) || cpuName.includes(c.name));
         if (cpu) {
           const pm = cpu.passmark || 0;
           const tier = pm >= 40000 ? 'Flagship' : pm >= 20000 ? 'Ultra' : pm >= 10000 ? 'High' : pm >= 5000 ? 'Mid' : 'Entry';
@@ -33,7 +33,7 @@ export default {
       } else if (gpuName) {
         const jsonResp = await fetch(GPUS_URL);
         const data = await jsonResp.json();
-        const gpu = data.gpus.find(g => g.name === gpuName);
+        const gpu = data.gpus.find(g => g.name === gpuName) || data.gpus.find(g => g.name.includes(gpuName) || gpuName.includes(g.name));
         if (gpu) {
           const g3d = gpu.g3d || 0;
           const tier = g3d >= 30000 ? 'Flagship' : g3d >= 20000 ? 'Ultra' : g3d >= 10000 ? 'High' : g3d >= 3000 ? 'Mid' : 'Entry';

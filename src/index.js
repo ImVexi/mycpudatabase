@@ -1,22 +1,21 @@
-const SITE = 'https://database.vextroboomin.xyz';
-
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const cpuName = url.searchParams.get('cpu');
     const gpuName = url.searchParams.get('gpu');
-    const hasParams = cpuName || gpuName;
     const isEmbedPath = url.pathname.startsWith('/embed');
+    const userAgent = request.headers.get('User-Agent') || '';
+    const isCrawler = /(Discordbot|Twitterbot|facebookexternalhit|Facebot|Slack|TelegramBot|WhatsApp|LinkedInBot|Applebot|Slackbot|Slack-ImgProxy|Googlebot|bingbot|Pinterest)/i.test(userAgent);
 
-    // Generate OG-rich HTML for /embed paths or any path with ?cpu=/?gpu= params
-    if (isEmbedPath || hasParams) {
+    // Generate OG-rich HTML for /embed paths, or for ?cpu=/?gpu= when requested by a crawler
+    if (isEmbedPath || (isCrawler && (cpuName || gpuName))) {
       let title = 'CPUDb — Hardware Specs Database';
       let desc = 'Browse and compare 9000+ CPUs and 3000+ GPUs with specs, benchmarks, and performance comparisons.';
 
       try {
         if (cpuName) {
-          const resp = await fetch(SITE + '/all_cpus.json');
-          const data = await resp.json();
+          const jsonResp = await env.ASSETS.fetch(new URL('/all_cpus.json', url));
+          const data = await jsonResp.json();
           const cpu = data.cpus.find(c => c.name === cpuName);
           if (cpu) {
             const pm = cpu.passmark || 0;
@@ -26,8 +25,8 @@ export default {
             desc = buildCpuDesc(cpu, pm, tier);
           }
         } else if (gpuName) {
-          const resp = await fetch(SITE + '/all_gpus.json');
-          const data = await resp.json();
+          const jsonResp = await env.ASSETS.fetch(new URL('/all_gpus.json', url));
+          const data = await jsonResp.json();
           const gpu = data.gpus.find(g => g.name === gpuName);
           if (gpu) {
             const g3d = gpu.g3d || 0;
@@ -38,7 +37,7 @@ export default {
         }
       } catch (e) {}
 
-      const redirect = SITE + '/?' + (cpuName ? 'cpu=' + encodeURIComponent(cpuName) : 'gpu=' + encodeURIComponent(gpuName));
+      const redirect = cpuName ? '/?cpu=' + encodeURIComponent(cpuName) : gpuName ? '/?gpu=' + encodeURIComponent(gpuName) : '/';
 
       return new Response(`<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -57,7 +56,6 @@ export default {
       });
     }
 
-    // Everything else: serve static assets
     return env.ASSETS.fetch(request);
   }
 };

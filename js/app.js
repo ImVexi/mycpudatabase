@@ -410,7 +410,7 @@
   // ── Tier-Year Stats ──
 
   function buildTierYearStats(data, tab) {
-    var stats = {};
+    var scores = {};
     var lYear = {};
     for (var i = 0; i < data.length; i++) {
       var item = data[i];
@@ -426,19 +426,24 @@
         tier = getGpuTierLabel(score || 0);
       }
       if (!score || !tier) continue;
-      if (!stats[tier]) stats[tier] = {};
-      if (!stats[tier][year]) stats[tier][year] = { sum: 0, count: 0 };
-      stats[tier][year].sum += score;
-      stats[tier][year].count++;
+      if (!scores[tier]) scores[tier] = {};
+      if (!scores[tier][year]) scores[tier][year] = [];
+      scores[tier][year].push(score);
     }
+
     var result = {};
     var maxYear = {};
-    for (var tier in stats) {
+    var topN = 10;
+    for (var tier in scores) {
       result[tier] = {};
       var yMax = 0;
-      for (var yr in stats[tier]) {
-        var entry = stats[tier][yr];
-        result[tier][yr] = Math.round(entry.sum / entry.count);
+      for (var yr in scores[tier]) {
+        var all = scores[tier][yr];
+        all.sort(function (a, b) { return b - a; });
+        var top = all.slice(0, topN);
+        var sum = 0;
+        for (var s = 0; s < top.length; s++) sum += top[s];
+        result[tier][yr] = Math.round(sum / top.length);
         var y = parseInt(yr, 10);
         if (y > yMax) yMax = y;
       }

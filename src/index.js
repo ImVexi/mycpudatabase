@@ -1,5 +1,6 @@
 const CPUS_URL = 'https://raw.githubusercontent.com/ImVexi/mycpudatabase/main/all_cpus.json';
 const GPUS_URL = 'https://raw.githubusercontent.com/ImVexi/mycpudatabase/main/all_gpus.json';
+const PREFIXES = ['', 'AMD ', 'Intel ', 'Qualcomm ', 'Apple '];
 
 export default {
   async fetch(request, env, ctx) {
@@ -8,7 +9,6 @@ export default {
     const gpuName = url.searchParams.get('gpu');
     const isEmbedPath = url.pathname.startsWith('/embed');
 
-    // Only handle /embed paths. Everything else passes through.
     if (!isEmbedPath) {
       try { return await env.ASSETS.fetch(request); } catch (e) {
         return new Response('Not found', { status: 404 });
@@ -22,7 +22,7 @@ export default {
       if (cpuName) {
         const jsonResp = await fetch(CPUS_URL);
         const data = await jsonResp.json();
-        const cpu = data.cpus.find(c => c.name === cpuName) || data.cpus.find(c => c.name.includes(cpuName));
+        const cpu = findByName(data.cpus, cpuName);
         if (cpu) {
           const pm = cpu.passmark || 0;
           const tier = pm >= 40000 ? 'Flagship' : pm >= 20000 ? 'Ultra' : pm >= 10000 ? 'High' : pm >= 5000 ? 'Mid' : 'Entry';
@@ -33,7 +33,7 @@ export default {
       } else if (gpuName) {
         const jsonResp = await fetch(GPUS_URL);
         const data = await jsonResp.json();
-        const gpu = data.gpus.find(g => g.name === gpuName) || data.gpus.find(g => g.name.includes(gpuName));
+        const gpu = findByName(data.gpus, gpuName);
         if (gpu) {
           const g3d = gpu.g3d || 0;
           const tier = g3d >= 30000 ? 'Flagship' : g3d >= 20000 ? 'Ultra' : g3d >= 10000 ? 'High' : g3d >= 3000 ? 'Mid' : 'Entry';
@@ -87,6 +87,14 @@ function buildGpuDesc(gpu, g3d, tier) {
   if (gpu.released) parts.push(`Released: ${gpu.released}`);
   parts.push(`${tier} GPU`);
   return parts.join(' | ');
+}
+
+function findByName(items, name) {
+  for (const prefix of PREFIXES) {
+    const found = items.find(c => c.name === prefix + name);
+    if (found) return found;
+  }
+  return null;
 }
 
 function esc(s) {

@@ -584,6 +584,12 @@
         var sortFn = currentTab === 'cpu' ? getCpuSortValue : getGpuSortValue;
         var va = sortFn(a, sortField);
         var vb = sortFn(b, sortField);
+        // Push items with missing data (value 0) to the end regardless of sort direction
+        var aMiss = (va === 0 || va === null || va === undefined);
+        var bMiss = (vb === 0 || vb === null || vb === undefined);
+        if (aMiss && bMiss) return 0;
+        if (aMiss) return 1;
+        if (bMiss) return -1;
         if (typeof va === 'string') {
           return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
         }
